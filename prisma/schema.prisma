@@ -1,0 +1,145 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  PHARMACIST
+  CASHIER
+  ACCOUNTANT
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  clerkId   String   @unique
+  firstName String
+  lastName  String
+  role      Role     @default(CASHIER)
+  createdAt DateTime @default(now())
+
+  sales     Sale[]
+  expenses  Expense[]
+  logs      ActivityLog[]
+}
+
+model Medicine {
+  id           String   @id @default(cuid())
+  name         String
+  genericName  String?
+  category     String?
+  description  String?
+  sellingPrice Decimal
+  expiryDate   DateTime?
+  reorderLevel Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  batches    Batch[]
+  saleItems  SaleItem[]
+}
+
+model Batch {
+  id         String   @id @default(cuid())
+  medicineId String
+  orderId    String?   // optional if batch came from an order
+  batchNumber Int      @default(autoincrement())
+  expiryDate DateTime
+  costPrice  Decimal
+  quantity   Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  medicine  Medicine  @relation(fields: [medicineId], references: [id])
+  order     Order?    @relation(fields: [orderId], references: [id])
+  salesItems SaleItem[]
+}
+
+model Order {
+  id         String    @id @default(cuid())
+  ordernumber Int      @default(autoincrement())
+  supplier   String?
+  orderDate  DateTime  @default(now())
+  totalCost  Decimal?
+  createdAt  DateTime  @default(now())
+
+  batches    Batch[]
+}
+
+model Sale {
+  id           String   @id @default(cuid())
+  userId       String
+  customerId   String?
+  totalAmount  Decimal
+  discount     Decimal? @default(0)
+  paymentMethod String?
+  createdAt    DateTime @default(now())
+
+  user      User      @relation(fields: [userId], references: [id])
+  customer  Customer? @relation(fields: [customerId], references: [id])
+  items     SaleItem[]
+}
+
+model SaleItem {
+  id             String       @id @default(cuid())
+  saleId         String
+  batchId        String
+  medicineId     String
+  prescriptionId String?      // Optional link to a Prescription
+  name           String
+  quantity       Int
+  unitPrice      Decimal
+  totalPrice     Decimal
+
+  sale         Sale          @relation(fields: [saleId], references: [id])
+  batch        Batch         @relation(fields: [batchId], references: [id])
+  medicine     Medicine      @relation(fields: [medicineId], references: [id])
+  prescription Prescription? @relation(fields: [prescriptionId], references: [id])
+}
+
+model Prescription {
+  id         String    @id @default(cuid())
+  doctorName String?
+  patientName String?
+  notes      String?
+  fileUrl    String?
+  createdAt  DateTime  @default(now())
+
+  saleItems  SaleItem[]
+}
+
+model Customer {
+  id            String   @id @default(cuid())
+  name          String?
+  phone         String?
+  email         String?
+  loyaltyPoints Int       @default(0)
+  createdAt     DateTime  @default(now())
+
+  sales Sale[]
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  userId      String
+  category    String
+  amount      Decimal
+  description String?
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String
+  tableName String
+  recordId  String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
