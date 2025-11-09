@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from "next/server";
-import { prisma } from "../../lib/prisma"; // your prisma client path
+import { prisma } from "../../lib/prisma";
 
 export async function GET(req: NextRequest) {
   try {
@@ -8,30 +8,51 @@ export async function GET(req: NextRequest) {
     const name = searchParams.get("name") || undefined;
     const category = searchParams.get("category") || undefined;
     const expiryDate = searchParams.get("expiryDate") || undefined;
-
-    const where: any = {};
-
-    if (name) {
-      where.name = { contains: name, mode: "insensitive" };
-    }
-
-    if (category) {
-      where.category = { contains: category, mode: "insensitive" };
-    }
-
-    if (expiryDate) {
-      where.expiryDate = { lte: new Date(expiryDate) };
-    }
+    const filterMode = searchParams.get("filterMode") || "all";
 
     const medicines = await prisma.medicine.findMany({
-      where,
+      where: {
+        ...(name && {
+          name: { contains: name, mode: "insensitive" },
+        }),
+        ...(category && {
+          category: { contains: category, mode: "insensitive" },
+        }),
+        ...(expiryDate && {
+          expiryDate: { lte: new Date(expiryDate) },
+        }),
+      },
       include: {
-        batches: true, // optional if you want batch info
+        batches: true,
       },
       orderBy: { name: "asc" },
     });
 
-    return NextResponse.json(medicines);
+    // Compute quantity + expiring soon on server
+    const today = new Date();
+    const soon = new Date();
+    soon.setDate(today.getDate() + 30);
+
+    const processed = medicines
+      .map((m) => {
+        const totalQty = m.batches.reduce((sum, b) => sum + b.quantity, 0);
+        const isLowStock = totalQty < 10;
+        const isExpiringSoon = m.expiryDate && new Date(m.expiryDate) <= soon;
+
+        return {
+          ...m,
+          totalQty,
+          isLowStock,
+          isExpiringSoon,
+        };
+      })
+      .filter((m) => {
+        if (filterMode === "lowStock") return m.isLowStock;
+        if (filterMode === "expiringSoon") return m.isExpiringSoon;
+        return true; // all
+      });
+
+    return NextResponse.json(processed);
   } catch (err) {
     console.error(err);
     return NextResponse.json(
@@ -44,7 +65,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: Request) {
   try {
     const data = await req.json();
-    console.log("Received medicine data:", data);
+
     const { name, category, quantity, costPrice } = data;
     if (!name || !category || !quantity || !costPrice) {
       return NextResponse.json(
@@ -61,11 +82,12 @@ export async function POST(req: Request) {
         description: data.description,
         sellingPrice: parseFloat(data.sellingPrice),
         expiryDate: data.expiryDate ? new Date(data.expiryDate) : null,
-        reorderLevel: quantity ? parseInt(quantity) : 0,
+        reorderLevel: Number(quantity),
+
         batches: {
           create: {
-            quantity: parseInt(quantity),
-            costPrice: parseFloat(costPrice),
+            quantity: Number(quantity),
+            costPrice: Number(costPrice),
             expiryDate: new Date(data.expiryDate),
           },
         },

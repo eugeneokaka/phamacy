@@ -26,6 +26,7 @@ model User {
   sales     Sale[]
   expenses  Expense[]
   logs      ActivityLog[]
+  batches   Batch[]    
 }
 
 model Medicine {
@@ -47,6 +48,7 @@ model Batch {
   id         String   @id @default(cuid())
   medicineId String
   orderId    String?   // optional if batch came from an order
+  userId      String?
   batchNumber Int      @default(autoincrement())
   expiryDate DateTime
   costPrice  Decimal
@@ -55,6 +57,7 @@ model Batch {
 
   medicine  Medicine  @relation(fields: [medicineId], references: [id])
   order     Order?    @relation(fields: [orderId], references: [id])
+  user       User?      @relation(fields: [userId], references: [id])
   salesItems SaleItem[]
 }
 
