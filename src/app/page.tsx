@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -26,6 +27,7 @@ interface Medicine {
 }
 
 export default function MedicinesPage() {
+  const router = useRouter();
   const [medicines, setMedicines] = useState<Medicine[]>([]);
   const [filters, setFilters] = useState({
     name: "",
@@ -139,20 +141,21 @@ export default function MedicinesPage() {
       {/* Medicines Table */}
       <div className="overflow-x-auto">
         <table className="w-full border-collapse rounded-lg overflow-hidden shadow-md">
-          <thead className="bg-gray-100 text-gray-700 uppercase text-sm tracking-wide">
+          <thead>
             <tr>
-              <th className="px-4 py-3 text-left">Name</th>
-              <th className="px-4 py-3 text-left">Category</th>
-              <th className="px-4 py-3 text-left">Expiry Date</th>
-              <th className="px-4 py-3 text-left">Selling Price</th>
-              <th className="px-4 py-3 text-left">Quantity</th>
+              <th>Name</th>
+              <th>Category</th>
+              <th>Expiry</th>
+              <th>Selling Price</th>
+              <th>Quantity</th>
+              <th>Action</th>
             </tr>
           </thead>
 
           <tbody>
             {medicines.length === 0 ? (
               <tr>
-                <td colSpan={5} className="text-center py-6 text-gray-500">
+                <td colSpan={6} className="text-center py-6 text-gray-500">
                   No medicines found
                 </td>
               </tr>
@@ -163,7 +166,6 @@ export default function MedicinesPage() {
                   : med.isExpiringSoon
                   ? "bg-yellow-100"
                   : "bg-white";
-
                 return (
                   <tr
                     key={med.id}
@@ -185,6 +187,14 @@ export default function MedicinesPage() {
                     </td>
                     <td className="px-4 py-3 font-semibold text-gray-700">
                       {med.totalQty}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Button
+                        className="bg-green-500 hover:bg-green-600 text-white"
+                        onClick={() => router.push(`/sales/${med.id}`)}
+                      >
+                        Sell
+                      </Button>
                     </td>
                   </tr>
                 );
