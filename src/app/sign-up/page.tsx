@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { useSignUp } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
 export default function SignUpPage() {
-  const { signUp, isLoaded } = useSignUp();
+  const { signUp, isLoaded: signUpLoaded, setActive } = useSignUp();
+  const router = useRouter();
 
   const [step, setStep] = useState<"form" | "verify">("form");
   const [email, setEmail] = useState("");
@@ -17,8 +19,9 @@ export default function SignUpPage() {
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
 
-  if (!isLoaded || !signUp) return <div>Loading...</div>;
+  if (!signUpLoaded) return <div>Loading...</div>;
 
+  // 1️⃣ CREATE USER
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -29,7 +32,6 @@ export default function SignUpPage() {
         return;
       }
 
-      // Create user (Clerk userId not yet available)
       await signUp.create({
         emailAddress: email,
         password,
@@ -37,19 +39,21 @@ export default function SignUpPage() {
         lastName,
       });
 
-      // Send verification code
-      await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+      await signUp.prepareEmailAddressVerification({
+        strategy: "email_code",
+      });
 
       toast.success("Verification code sent to your email!");
       setStep("verify");
     } catch (err: any) {
       console.error(err);
-      toast.error(err.errors?.[0]?.message || err.message || "Sign up failed");
+      toast.error(err.errors?.[0]?.message || "Sign up failed");
     } finally {
       setLoading(false);
     }
   };
 
+  // 2️⃣ VERIFY CODE + AUTO LOGIN
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -60,59 +64,49 @@ export default function SignUpPage() {
         return;
       }
 
-      // Verify email
-      await signUp.attemptEmailAddressVerification({ code });
+      const verify = await signUp.attemptEmailAddressVerification({ code });
 
-      // ✅ Now Clerk provides the created user ID
-      const clerkId = signUp.createdUserId;
-      if (!clerkId) throw new Error("Could not get Clerk user ID");
-
-      // Save user in backend
-      const res = await fetch("/api/auth/sign-up", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email,
-          firstName,
-          lastName,
-          clerkId,
-        }),
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text);
+      if (verify.status !== "complete") {
+        throw new Error("Incorrect verification code");
       }
 
-      toast.success("Account verified and created successfully!");
+      const clerkId = signUp.createdUserId;
+      if (!clerkId) throw new Error("Cannot get user ID");
 
-      // Reset form
-      setStep("form");
-      setEmail("");
-      setPassword("");
-      setFirstName("");
-      setLastName("");
-      setCode("");
+      // Save user in your backend
+      await fetch("/api/auth/sign-up", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, firstName, lastName, clerkId }),
+      });
+
+      toast.success("Email verified! Logging you in...");
+
+      // 🔥 AUTO-LOG IN & ACTIVATE SESSION
+      await setActive({ session: signUp.createdSessionId });
+
+      // 🔃 REFRESH APP STATE
+      router.refresh();
+
+      // Redirect to dashboard (change this if needed)
+      router.push("/dashboard");
     } catch (err: any) {
       console.error(err);
-      toast.error(
-        err.errors?.[0]?.message || err.message || "Verification failed"
-      );
+      toast.error(err.errors?.[0]?.message || "Verification failed");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white">
-      <div id="clerk-captcha"></div>
-
+    <div className="min-h-screen flex items-center justify-center bg-white px-4">
       {step === "form" && (
         <form
           onSubmit={handleSubmit}
           className="w-full max-w-md space-y-4 p-6 rounded-md shadow-md"
         >
           <h2 className="text-2xl font-bold text-center">Sign Up</h2>
+
           <Input
             placeholder="First Name"
             value={firstName}
@@ -135,6 +129,7 @@ export default function SignUpPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
+
           <Button
             type="submit"
             className="w-full bg-purple-600 hover:bg-purple-700 text-white"
@@ -153,17 +148,19 @@ export default function SignUpPage() {
           <h2 className="text-2xl font-bold text-center">
             Enter Verification Code
           </h2>
+
           <Input
             placeholder="Verification Code"
             value={code}
             onChange={(e) => setCode(e.target.value)}
           />
+
           <Button
             type="submit"
             className="w-full bg-purple-600 hover:bg-purple-700 text-white"
             disabled={loading}
           >
-            {loading ? "Verifying..." : "Verify & Create Account"}
+            {loading ? "Verifying..." : "Verify & Continue"}
           </Button>
         </form>
       )}
