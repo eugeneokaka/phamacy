@@ -16,12 +16,20 @@ export default function Navbar() {
       {/* Right side: Links or UserProfile */}
       <div className="flex items-center space-x-4">
         {!isLoaded ? null : !isSignedIn ? (
-          <Link
-            href="/sign-in"
-            className="bg-white text-purple-600 px-4 py-2 rounded-md font-medium hover:bg-gray-100 transition"
-          >
-            Login
-          </Link>
+          <div>
+            <Link
+              href="/sign-in"
+              className="bg-white text-purple-600 px-4 py-2 rounded-md font-medium hover:bg-gray-100 transition"
+            >
+              Login
+            </Link>
+            <Link
+              href="/sign-up"
+              className="bg-white text-purple-600 px-4 py-2 rounded-md font-medium hover:bg-gray-100 transition"
+            >
+              sign-up
+            </Link>
+          </div>
         ) : (
           <>
             {/* Only visible to logged-in users */}
