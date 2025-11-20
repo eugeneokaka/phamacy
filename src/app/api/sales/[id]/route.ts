@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
+
 //
 // GET single medicine + batches
 //
@@ -46,25 +47,22 @@ export async function GET(
 }
 
 //
-// POST: Make a sale (no transaction version)
+// POST: Make a sale (with prescription + doctorName + notes)
 //
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const id = (await params).id;
-  console.log("id", id);
 
   try {
-    // 1️⃣ AUTH – get logged in Clerk user
+    // AUTH
     const { userId: clerkUserId } = await auth();
-    console.log("clerkid", clerkUserId);
-
     if (!clerkUserId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // 2️⃣ Find Prisma User by clerkId
+    // Get Prisma user for doctor name
     const prismaUser = await prisma.user.findUnique({
       where: { clerkId: clerkUserId },
     });
@@ -76,16 +74,18 @@ export async function POST(
       );
     }
 
+    const doctorName = `${prismaUser.firstName} ${prismaUser.lastName}`;
+
     const body = await req.json();
     const {
       batchId,
       quantity,
       unitPrice,
-      customerId,
       paymentMethod,
       discount,
+      patientName,
+      notes,
     } = body;
-    console.log(body);
 
     const qty = Number(quantity || 0);
 
@@ -96,18 +96,22 @@ export async function POST(
       );
     }
 
-    // 3️⃣ Fetch batch + medicine
+    if (!patientName || !patientName.trim()) {
+      return NextResponse.json(
+        { error: "Patient name is required" },
+        { status: 400 }
+      );
+    }
+
+    // Fetch batch + medicine
     const batch = await prisma.batch.findUnique({
       where: { id: batchId },
       include: { medicine: true },
     });
-    // fetcch medicine
+
     const medicine = await prisma.medicine.findUnique({
-      where: {
-        id,
-      },
+      where: { id },
     });
-    console.log("medcine", medicine);
 
     if (!batch)
       return NextResponse.json({ error: "Batch not found" }, { status: 404 });
@@ -125,7 +129,7 @@ export async function POST(
       );
     }
 
-    // 4️⃣ Determine pricing
+    // Pricing
     const price = unitPrice
       ? Number(unitPrice)
       : Number(batch.medicine.sellingPrice);
@@ -135,18 +139,27 @@ export async function POST(
     const totalPrice = price * qty;
     const totalAmount = totalPrice - disc;
 
-    // 5️⃣ Create sale
+    // Create prescription (UPDATED)
+    const prescription = await prisma.prescription.create({
+      data: {
+        patientName,
+        doctorName, // <- doctor name from user model
+        notes: notes || null,
+        fileUrl: null,
+      },
+    });
+
+    // Create sale
     const sale = await prisma.sale.create({
       data: {
-        userId: prismaUser.id, // ✨ server-side user!
-        customerId: customerId || null,
+        userId: prismaUser.id,
         totalAmount,
         discount: disc,
         paymentMethod: paymentMethod || null,
       },
     });
 
-    // 6️⃣ Create sale item
+    // Create sale item (with prescriptionId)
     const saleItem = await prisma.saleItem.create({
       data: {
         saleId: sale.id,
@@ -156,16 +169,17 @@ export async function POST(
         quantity: qty,
         unitPrice: price,
         totalPrice,
+        prescriptionId: prescription.id,
       },
     });
 
-    // 7️⃣ Update batch quantity
+    // Update batch qty
     const updatedBatch = await prisma.batch.update({
       where: { id: batch.id },
       data: { quantity: batch.quantity - qty },
     });
 
-    // 8️⃣ Recompute stock
+    // Recompute stock
     const batches = await prisma.batch.findMany({
       where: { medicineId: batch.medicineId },
       select: { quantity: true },

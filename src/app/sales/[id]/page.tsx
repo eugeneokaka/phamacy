@@ -18,10 +18,10 @@ export default function MedicineSalePage() {
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
   const [quantity, setQuantity] = useState<number>(1);
   const [paymentMethod, setPaymentMethod] = useState("Cash");
-  const [customerId, setCustomerId] = useState<string | undefined>(undefined);
+  const [patientName, setPatientName] = useState<string>("");
+  const [notes, setNotes] = useState<string>(""); // NEW
   const [submitting, setSubmitting] = useState(false);
 
-  // LOAD MEDICINE + BATCHES
   useEffect(() => {
     if (!id) return;
 
@@ -49,10 +49,10 @@ export default function MedicineSalePage() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  // CREATE SALE
   const handleSell = async () => {
     if (!selectedBatchId) return toast.error("Select a batch");
     if (quantity <= 0) return toast.error("Quantity must be > 0");
+    if (!patientName.trim()) return toast.error("Patient name is required");
 
     setSubmitting(true);
 
@@ -64,7 +64,8 @@ export default function MedicineSalePage() {
           batchId: selectedBatchId,
           quantity,
           paymentMethod,
-          customerId,
+          patientName,
+          notes, // NEW
         }),
       });
 
@@ -128,17 +129,17 @@ export default function MedicineSalePage() {
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr>
-                  <th style={{ textAlign: "left", padding: 6 }}>Select</th>
-                  <th style={{ textAlign: "left", padding: 6 }}>Batch #</th>
-                  <th style={{ textAlign: "left", padding: 6 }}>Expiry</th>
-                  <th style={{ textAlign: "left", padding: 6 }}>Qty</th>
-                  <th style={{ textAlign: "left", padding: 6 }}>Cost</th>
+                  <th>Select</th>
+                  <th>Batch #</th>
+                  <th>Expiry</th>
+                  <th>Qty</th>
+                  <th>Cost</th>
                 </tr>
               </thead>
               <tbody>
                 {data.medicine.batches.map((b: any) => (
                   <tr key={b.id} style={{ borderTop: "1px solid #eee" }}>
-                    <td style={{ padding: 6 }}>
+                    <td>
                       <input
                         type="radio"
                         name="batch"
@@ -146,12 +147,10 @@ export default function MedicineSalePage() {
                         onChange={() => setSelectedBatchId(b.id)}
                       />
                     </td>
-                    <td style={{ padding: 6 }}>{b.batchNumber}</td>
-                    <td style={{ padding: 6 }}>
-                      {new Date(b.expiryDate).toLocaleDateString()}
-                    </td>
-                    <td style={{ padding: 6 }}>{b.quantity}</td>
-                    <td style={{ padding: 6 }}>{b.costPrice}</td>
+                    <td>{b.batchNumber}</td>
+                    <td>{new Date(b.expiryDate).toLocaleDateString()}</td>
+                    <td>{b.quantity}</td>
+                    <td>{b.costPrice}</td>
                   </tr>
                 ))}
               </tbody>
@@ -196,14 +195,25 @@ export default function MedicineSalePage() {
               </div>
             </div>
 
-            {/* Optional Customer ID */}
+            {/* Patient Name */}
             <div style={{ marginTop: 8 }}>
-              <label>Customer ID (optional)</label>
+              <label>Patient Name</label>
               <input
-                value={customerId || ""}
-                onChange={(e) => setCustomerId(e.target.value)}
-                placeholder="customer id"
+                value={patientName}
+                onChange={(e) => setPatientName(e.target.value)}
+                placeholder="Enter patient name"
                 style={{ padding: 8, width: "100%" }}
+              />
+            </div>
+
+            {/* Notes */}
+            <div style={{ marginTop: 8 }}>
+              <label>Notes</label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Notes (optional)"
+                style={{ padding: 8, width: "100%", minHeight: 80 }}
               />
             </div>
 
@@ -212,12 +222,12 @@ export default function MedicineSalePage() {
               <button
                 onClick={handleSell}
                 disabled={submitting}
+                className="bg-black text-white p-2 rounded-2xl"
                 style={{
                   padding: "10px 16px",
                   opacity: submitting ? 0.6 : 1,
                   cursor: submitting ? "not-allowed" : "pointer",
                 }}
-                className="bg-black text-white p-2 rounded-2xl"
               >
                 {submitting ? "Processing sale..." : "Sell"}
               </button>

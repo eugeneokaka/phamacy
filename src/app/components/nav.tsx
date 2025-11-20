@@ -46,6 +46,12 @@ export default function Navbar() {
               >
                 Transactions
               </Link>
+              <Link
+                href="/prescriptions"
+                className="text-gray-700 hover:text-purple-600 font-medium"
+              >
+                prescriptions
+              </Link>
             </div>
 
             <UserButton
